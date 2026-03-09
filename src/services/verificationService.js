@@ -211,8 +211,10 @@ export async function verifyAndBurnPacket(childPacketId, onProgress) {
   // 6. Execute Transaction via Relayer API
   let receipt;
   try {
-    // We assume the Relayer runs alongside the frontend or on an accessible port
-    const RELAYER_URL = import.meta.env.VITE_RELAYER_URL || "http://localhost:3001";
+    // If we're on a Vercel deployment (or any non-localhost domain), use relative routing so vercel.json rewrites handle it.
+    // Otherwise, default to the local express server on 3001.
+    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const RELAYER_URL = import.meta.env.VITE_RELAYER_URL || (isDev ? "http://localhost:3001" : "");
 
     // Instead of axios, use native fetch to minimize dependencies
     const response = await fetch(`${RELAYER_URL}/api/relayer/verifyAndSell`, {
