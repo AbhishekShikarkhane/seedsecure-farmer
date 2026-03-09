@@ -1,0 +1,15 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "relayer.js",
+            "use": "@vercel/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/(.*)",
+            "dest": "/relayer.js"
+        }
+    ]
+}

@@ -1,0 +1,282 @@
+import { collection, doc, getDocs, query, updateDoc, where, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { ethers } from "ethers";
+import { db } from "../firebase";
+
+/**
+ * Extract the numeric batch ID from a QR string.
+ * Handles formats like "BATCH_1772136175_PARENT_uuid" → "1772136175"
+ * If the input is already purely numeric, returns it as-is.
+ */
+function extractNumericBatchId(raw) {
+  const cleanId = String(raw).replace(/\D/g, '');
+  return cleanId;
+}
+
+const CONTRACT_ABI = [
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "batchID",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "seedType",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "purityScore",
+        "type": "uint256"
+      }
+    ],
+    "name": "BatchCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "batchID",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "childHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "buyer",
+        "type": "address"
+      }
+    ],
+    "name": "SeedSold",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_batchID",
+        "type": "uint256"
+      }
+    ],
+    "name": "batches",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "burnedChildPackets",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_batchID",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_seedType",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_purityScore",
+        "type": "uint256"
+      }
+    ],
+    "name": "createBatch",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "manufacturer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_batchID",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_childHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifyAndSell",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
+
+const CONTRACT_ADDRESS = import.meta.env.VITE_SEED_SECURE_ADDRESS?.trim();
+
+if (!CONTRACT_ADDRESS) {
+  console.error("[SeedSecure] FATAL: VITE_SEED_SECURE_ADDRESS is not defined in .env!");
+}
+
+// Debug: print contract address so it can be cross-referenced with the latest deployment
+console.log("[SeedSecure] Using contract address:", CONTRACT_ADDRESS);
+
+export async function verifyAndBurnPacket(childPacketId) {
+  if (!childPacketId) {
+    throw new Error("No QR code detected.");
+  }
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not configured.");
+  }
+
+  if (!window.ethereum) {
+    throw new Error("No crypto wallet found. Please install MetaMask.");
+  }
+
+  const batchesRef = collection(db, "batches");
+  const q = query(batchesRef, where("childPacketIDs", "array-contains", childPacketId));
+  const snapshot = await getDocs(q);
+
+  if (snapshot.empty) {
+    const error = new Error("This packet does not exist in the ledger.");
+    error.reason = "NOT_FOUND";
+    throw error;
+  }
+
+  const batchDoc = snapshot.docs[0];
+  const data = batchDoc.data();
+
+  // 1. Check if this specific child packet is already sold in Firebase
+  const soldChildPackets = Array.isArray(data.soldChildPackets) ? data.soldChildPackets : [];
+  if (soldChildPackets.includes(childPacketId)) {
+    const error = new Error("This specific packet has already been sold and verified.");
+    error.reason = "ALREADY_SOLD_FIREBASE";
+    throw error;
+  }
+
+  // 2. DISPATCH GUARD: Reject batches that haven't left the factory yet
+  const NOT_DISPATCHED_STATUSES = ["Ready", "Factory / Origin", "Pending", "PENDING"];
+  if (NOT_DISPATCHED_STATUSES.includes(data.status)) {
+    const error = new Error(
+      "Error: This batch has not left the factory yet."
+    );
+    error.reason = "NOT_DISPATCHED";
+    throw error;
+  }
+
+  // 3. Validate that the batch is in an appropriate state to be sold
+  const VALID_SALE_STATUSES = ["At Retailer", "In Transit", "Ready for Sale", "Sold"];
+  if (!VALID_SALE_STATUSES.includes(data.status)) {
+    const error = new Error(`This batch has an unrecognised status ('${data.status}') and cannot be verified.`);
+    error.reason = "INVALID_STATUS";
+    throw error;
+  }
+
+  const rawBatchId = data.batchID;
+  const cleanId = String(rawBatchId).replace(/\D/g, '');
+  const numericId = BigInt(cleanId);
+
+  console.log("[SeedSecure] Raw batchID from Firebase:", rawBatchId, "→ numeric:", numericId.toString());
+  if (numericId === 0n) {
+    const error = new Error('Failed to extract a valid numeric ID from the QR code.');
+    error.reason = "UNINITIALIZED_BATCH";
+    throw error;
+  }
+
+  const qrHash = ethers.keccak256(ethers.toUtf8Bytes(childPacketId));
+
+  const cleanAddress = String(CONTRACT_ADDRESS).trim();
+  if (!ethers.isAddress(cleanAddress)) {
+    console.error('FAILED ADDRESS:', cleanAddress);
+    throw new Error('Invalid Contract Address');
+  }
+
+  const provider = new ethers.BrowserProvider(window.ethereum, 80002);
+  await provider.send("eth_requestAccounts", []);
+  const signer = await provider.getSigner();
+  await updateDoc(doc(db, "batches", batchDoc.id), {
+    status: isLastPacket ? "Sold" : "At Retailer",
+    lastLocation: "Verified Sold",
+    soldAt: serverTimestamp(),
+    soldChildPackets: arrayUnion(childPacketId),
+  });
+
+  return {
+    success: true,
+    txHash: receipt.hash,
+    batchId,
+    purityScore: data.purityScore,
+    status: isLastPacket ? "Sold" : "At Retailer",
+  };
+}

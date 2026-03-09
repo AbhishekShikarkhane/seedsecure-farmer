@@ -1,0 +1,33 @@
+{
+  "name": "farmer-pwa",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "relayer": "node relayer.js",
+    "start": "concurrently \"vite\" \"node relayer.js\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "ethers": "^6.16.0",
+    "express": "^5.2.1",
+    "firebase": "^12.9.0",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.574.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4",
+    "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}
