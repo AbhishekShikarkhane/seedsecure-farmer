@@ -107,10 +107,6 @@ export async function verifyAndBurnPacket(childPacketId, onProgress) {
   // 2. Contract Consistency: Validate Address
   const validatedAddress = validateContractAddress(CONTRACT_ADDRESS);
 
-  if (!window.ethereum) {
-    throw new Error("No crypto wallet found. Please install MetaMask.");
-  }
-
   // 3. Firebase Validation (Off-chain Ledger)
   const batchesRef = collection(db, "batches");
   const q = query(batchesRef, where("childPacketIDs", "array-contains", childPacketId));
