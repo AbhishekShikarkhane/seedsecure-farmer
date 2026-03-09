@@ -70,7 +70,11 @@ const Scanner = ({ onScan, onClose }) => {
       h5InstanceRef.current = html5;
 
       // explicitly constrain the scanner to use the rear-facing camera
-      await html5.start({ facingMode: "environment" }, config, onDecode, () => { });
+      try {
+        await html5.start({ facingMode: { exact: "environment" } }, config, onDecode, () => { });
+      } catch (e) {
+        await html5.start({ facingMode: "environment" }, config, onDecode, () => { });
+      }
 
       // Enforce mobile video attributes (playsInline)
       const videoEl = document.querySelector("#h5qr-live video");
@@ -227,13 +231,10 @@ const Scanner = ({ onScan, onClose }) => {
 
   return (
     <div className="farmer-scanner-wrap flex flex-col items-center w-full">
-      <div className="relative w-full aspect-square min-h-[250px] max-h-[300px] overflow-hidden rounded-2xl bg-black flex items-center justify-center shadow-inner">
+      <div className="relative w-full aspect-square min-h-[300px] flex items-center justify-center bg-black rounded-2xl overflow-hidden border-2 border-gray-800 shadow-inner">
         <div
           id="h5qr-live"
-          className="w-full h-full"
-          style={{
-            display: (state === "active") ? "block" : "none"
-          }}
+          className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-black"
         />
 
         {(state === "requesting" || loading) && (
