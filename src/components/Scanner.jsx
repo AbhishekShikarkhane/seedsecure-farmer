@@ -69,16 +69,18 @@ const Scanner = ({ onScan, onClose }) => {
       const html5 = new Html5Qrcode(elementId, { verbose: false });
       h5InstanceRef.current = html5;
 
-      const devices = await Html5Qrcode.getCameras().catch(() => []);
-      const pref =
-        devices.find(d => (d.label || "").toLowerCase().includes("back")) ||
-        devices.find(d => (d.label || "").toLowerCase().includes("environment")) ||
-        devices[0];
+      // explicitly constrain the scanner to use the rear-facing camera
+      await html5.start({ facingMode: "environment" }, config, onDecode, () => { });
 
-      if (pref) {
-        await html5.start(pref.id, config, onDecode, () => { });
-      } else {
-        await html5.start({ facingMode: "environment" }, config, onDecode, () => { });
+      // Enforce mobile video attributes (playsInline)
+      const videoEl = document.querySelector("#h5qr-live video");
+      if (videoEl) {
+        videoEl.setAttribute("playsinline", "true");
+        videoEl.setAttribute("webkit-playsinline", "true");
+        videoEl.setAttribute("autoplay", "true");
+        videoEl.setAttribute("muted", "true");
+        videoEl.muted = true;
+        videoEl.style.objectFit = "cover";
       }
 
       setLoading(false);
@@ -224,13 +226,12 @@ const Scanner = ({ onScan, onClose }) => {
   };
 
   return (
-    <div className="farmer-scanner-wrap" style={{ position: "relative" }}>
-      <div style={{ position: "relative", minHeight: 280, borderRadius: 16, overflow: "hidden", background: "#000" }}>
+    <div className="farmer-scanner-wrap flex flex-col items-center w-full">
+      <div className="relative w-full aspect-square min-h-[250px] max-h-[300px] overflow-hidden rounded-2xl bg-black flex items-center justify-center shadow-inner">
         <div
           id="h5qr-live"
+          className="w-full h-full"
           style={{
-            width: "100%",
-            minHeight: 280,
             display: (state === "active") ? "block" : "none"
           }}
         />
