@@ -85,7 +85,7 @@ const VerificationLoader = ({ progress, status, error, onComplete }) => {
           </div>
           {error && (
             <div className="validation-failed-msg mono-text">
-              VALIDATION FAILED
+              {String(error).includes("chronological sequence") ? "SEQUENCE VIOLATION" : "VALIDATION FAILED"}
             </div>
           )}
         </div>

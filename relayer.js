@@ -55,7 +55,14 @@ const parseBatchId = (rawId) => {
 
     try {
         const batchId = BigInt(parts[1]);
-        const childIndex = BigInt(parts[3]);
+        
+        // For parent cartons, the 4th segment is a UUID, not an integer "childIndex".
+        // Only parse childIndex if this is a CHILD packet QR.
+        let childIndex = BigInt(0);
+        if (parts[2] === 'CHILD') {
+            childIndex = BigInt(parts[3]);
+        }
+        
         return { batchId, childIndex };
     } catch (err) {
         throw new Error("Extracted ID segments are not valid integers.");
@@ -90,6 +97,27 @@ app.post('/api/relayer/verifyAndSell', async (req, res) => {
         if (alreadyScanned) {
             console.warn(`[Relayer] Packet ${childPacketId} is already verified and sold.`);
             return res.status(400).json({ success: false, error: "WARNING: FAKE OR DUPLICATE DETECTED. This packet has already been verified." });
+        }
+
+        console.log(`[Relayer] Checking batch status for Batch ID ${batchId.toString()}...`);
+        const batchData = await contract.batches(batchId);
+        
+        // Return format: (batchID, seedType, purityScore, manufacturer, exists, status)
+        // status enum: 0 = Manufactured, 1 = InTransit, 2 = AtRetailer
+        const batchExists = batchData[4];
+        const batchStatus = Number(batchData[5]);
+
+        if (!batchExists) {
+            console.warn(`[Relayer] Batch ${batchId.toString()} does not exist on blockchain.`);
+            return res.status(400).json({ success: false, error: "Batch does not exist on blockchain. Please create a new batch on the Manufacturer Portal first." });
+        }
+
+        if (batchStatus !== 2) {
+            console.warn(`[Relayer] Scan rejected: Batch ${batchId.toString()} is not at retailer. Current status: ${batchStatus}`);
+            return res.status(400).json({ 
+                success: false, 
+                error: "Validation Failed: This parent seed carton has not been scanned at the retail location yet. Supply chain chronological sequence broken." 
+            });
         }
 
         console.log(`[Relayer] Executing verifyAndSell for Batch ID ${batchId.toString()}...`);
@@ -181,6 +209,69 @@ app.post('/api/relayer/verifyAndSell', async (req, res) => {
         }
 
         return res.status(500).json({ success: false, error: errorMessage });
+    }
+});
+
+// --- Transit Update Endpoint ---
+
+app.post('/api/relayer/transit', async (req, res) => {
+    try {
+        const { batchId: rawBatchId, isFinalRetailer } = req.body;
+
+        if (!rawBatchId) {
+            return res.status(400).json({ success: false, error: "Missing batchId" });
+        }
+
+        console.log(`\n[Relayer] Processing transit update for raw Batch QR: ${rawBatchId}`);
+        
+        // Parse the Batch ID from the parent carton QR
+        const { batchId } = parseBatchId(rawBatchId);
+        
+        // Status enum: 0 = Manufactured, 1 = InTransit, 2 = AtRetailer
+        const newStatus = isFinalRetailer ? 2 : 1; 
+
+        console.log(`[Relayer] Calling updateBatchStatus(${batchId.toString()}, ${newStatus}) ...`);
+
+        const tx = await contract.updateBatchStatus(batchId, newStatus, {
+            gasLimit: 150000
+        });
+
+        console.log(`[Relayer] Transit update submitted! Hash: ${tx.hash}`);
+
+        // Wait for confirmation
+        let receipt = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                console.log(`[Relayer] Waiting for transit confirmation (attempt ${attempt}/3)...`);
+                receipt = await tx.wait(1);
+                break;
+            } catch (waitErr) {
+                const isTimeout = waitErr?.code === 'TIMEOUT' || (waitErr?.message || '').includes('timeout');
+                if (isTimeout && attempt < 3) continue;
+                if (isTimeout) {
+                    return res.status(202).json({
+                        success: true,
+                        pending: true,
+                        txHash: tx.hash,
+                        message: 'Transit update submitted but confirmation timed out.'
+                    });
+                }
+                throw waitErr;
+            }
+        }
+
+        console.log(`[Relayer] Transit update confirmed in block: ${receipt.blockNumber}`);
+
+        return res.status(200).json({
+            success: true,
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber
+        });
+
+    } catch (error) {
+        console.error("[Relayer] Transit Update Failed:", error);
+        const raw = error?.reason || error?.data?.message || error?.error?.message || error?.message || "Unknown blockchain error.";
+        return res.status(500).json({ success: false, error: raw });
     }
 });
 

@@ -235,6 +235,10 @@ export async function verifyAndBurnPacket(childPacketId, onProgress) {
 
   } catch (error) {
     console.error("[Gasless Relayer] Execution failed:", error);
+    // Explicitly check for our custom Chronological Sequence error from relayer.js
+    if (error.message && error.message.includes("Supply chain chronological sequence broken")) {
+      throw new Error(error.message);
+    }
     throw new Error(error.message || "Blockchain validation failed. Relayer transaction reverted.");
   }
 

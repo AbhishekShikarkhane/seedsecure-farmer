@@ -81,11 +81,16 @@ const App = () => {
       });
       setLastResult({ success: true, ...result });
     } catch (err) {
+      console.error("Verification Error Caught in App.jsx:", err);
+      // Ensure the error state is set so the Loader knows it failed
       setVerifyError(err.message || "Validation Failed");
+      
+      // We set lastResult immediately. The VerificationLoader will wait a second 
+      // (because of `error ? 2000 : 800`) then call `onComplete` to hide the loader and show this result.
       setLastResult({
         success: false,
         message: err.message,
-        reason: err.reason
+        reason: err.reason || "ERROR"
       });
     }
   };

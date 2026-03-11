@@ -44,6 +44,30 @@ export async function updateTransitLocation(
     );
   }
 
+  // 1. Sync State With Blockchain via Relayer
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const RELAYER_URL = import.meta.env.VITE_RELAYER_URL || (isDev ? "http://localhost:3001" : "");
+  
+  try {
+    const response = await fetch(`${RELAYER_URL}/api/relayer/transit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchId: parentCartonId,
+        isFinalRetailer: isFinalRetailer
+      })
+    });
+
+    const relayerData = await response.json();
+    if (!response.ok && !relayerData.pending) {
+      throw new Error(relayerData.error || "Failed to update blockchain state.");
+    }
+  } catch (err) {
+    console.error("[Transit Service] Blockchain Error:", err);
+    throw new Error(`Blockchain sync failed: ${err.message}`);
+  }
+
+  // 2. Sync State with Firebase
   const updates = {
     transitHistory: arrayUnion(transitEntry),
   };

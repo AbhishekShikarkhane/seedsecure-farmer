@@ -13,14 +13,25 @@ const getFriendlyErrorMessage = (rawErrorText) => {
   ) {
     return "WARNING: This seed packet appears to be fake or has already been used.";
   }
-  if (text.includes("gas") || text.includes("network") || text.includes("rpc")) {
-    return "The network is currently busy. Please try scanning again in a moment.";
+  if (text.includes("chronological sequence")) {
+    return "This seed packet cannot be verified yet because its parent carton has not been scanned and received by a retailer.";
+  }
+  if (
+    text.includes("gas") || 
+    text.includes("network") || 
+    text.includes("rpc") ||
+    text.includes("failed to fetch") ||
+    text.includes("connection refused") ||
+    text.includes("internet disconnected")
+  ) {
+    return "The system is currently unreachable. Please check your internet connection or try again in a moment.";
   }
   return "An unexpected error occurred while checking this packet.";
 };
 
 const VerificationError = ({ message, reason, onRetry, onHome }) => {
   const isDuplicate = reason === "ALREADY_SCANNED" || reason === "ALREADY_SOLD_FIREBASE";
+  const isSequenceError = String(message || "").toLowerCase().includes("chronological sequence");
   const friendly = getFriendlyErrorMessage(message);
 
   return (
@@ -31,7 +42,7 @@ const VerificationError = ({ message, reason, onRetry, onHome }) => {
 
       <div style={{ marginBottom: 16 }}>
         <h3 className="farmer-result-title" style={{ fontSize: '1.25rem', color: 'var(--danger)' }}>
-          {isDuplicate ? "Verification Alert" : "Validation Failed"}
+          {isDuplicate ? "Verification Alert" : (isSequenceError ? "Scan Rejected" : "Validation Failed")}
         </h3>
         <p className="farmer-result-message" style={{ color: 'var(--text-primary)', opacity: 0.9, fontSize: '1rem', lineHeight: 1.5 }}>
           {friendly}
@@ -47,6 +58,15 @@ const VerificationError = ({ message, reason, onRetry, onHome }) => {
           <AlertTriangle size={20} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 2 }} />
           <p style={{ margin: 0, fontSize: '0.8125rem', color: '#fecaca', lineHeight: 1.5 }}>
             <strong>Security Warning:</strong> This cryptographic seal has already been used. Do not accept this product if the physical seal is broken.
+          </p>
+        </div>
+      )}
+
+      {isSequenceError && (
+        <div style={{ background: 'rgba(245,158,11,0.1)', padding: 16, borderRadius: 16, border: '1px solid rgba(245,158,11,0.2)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <AlertTriangle size={20} style={{ color: '#fbbf24', flexShrink: 0, marginTop: 2 }} />
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: '#fde68a', lineHeight: 1.5 }}>
+            <strong>Supply Chain Hold:</strong> The farmer application can only verify seed packets bought from authorized retailers. Use the Logistics scanner to mark the parent carton as "Received by Retailer" first.
           </p>
         </div>
       )}
