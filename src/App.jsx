@@ -8,9 +8,11 @@ import {
   PackageCheck,
   ExternalLink,
   MapPin,
-  ChevronLeft
+  ChevronLeft,
+  LogOut
 } from "lucide-react";
 import Scanner from "./components/Scanner.jsx";
+import Login from "./components/Login.jsx";
 import SeedSensePage from "./components/SeedSensePage.jsx";
 import VerificationSuccess from "./components/VerificationSuccess.jsx";
 import VerificationError from "./components/VerificationError.jsx";
@@ -23,6 +25,9 @@ import { getAgronomicAdvice } from "./services/agronomicService.js";
 import "./App.css";
 
 const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    localStorage.getItem('logisticsAuth') === 'true'
+  );
   const [scanning, setScanning] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -135,12 +140,24 @@ const App = () => {
     );
   }
 
+  if (!isAuthenticated) {
+    return <Login onLogin={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <BlockchainProvider>
       <div className="farmer-app-wrap">
         <div className="farmer-card">
           <header className="farmer-header" style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 12, right: 12 }}>
+            <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
+              <button 
+                onClick={() => { localStorage.removeItem('logisticsAuth'); setIsAuthenticated(false); }}
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '8px', color: '#fff', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'background 0.2s', fontWeight: 'bold' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <LogOut size={16} /> Logout
+              </button>
               <GlobalSyncButton />
             </div>
             <div className="farmer-logo-icon">
