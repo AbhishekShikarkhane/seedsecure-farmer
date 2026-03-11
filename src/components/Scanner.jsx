@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, AlertTriangle, ShieldOff } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 
 const Scanner = ({ onScan, onClose }) => {
   const videoRef = useRef(null);
@@ -46,7 +47,6 @@ const Scanner = ({ onScan, onClose }) => {
   const start = async () => {
     try {
       // Priority: use Html5Qrcode for everything as it's more cross-browser compatible and robust
-      const { Html5Qrcode } = await import("html5-qrcode");
       const elementId = "h5qr-live";
 
       // Clear any existing instance before starting
@@ -117,8 +117,6 @@ const Scanner = ({ onScan, onClose }) => {
     if (!file) return;
     setUploadError("");
     setLoading(true);
-
-    const { Html5Qrcode } = await import("html5-qrcode");
     const html5 = new Html5Qrcode("h5qr-live", { verbose: false });
 
     try {
@@ -231,14 +229,14 @@ const Scanner = ({ onScan, onClose }) => {
 
   return (
     <div className="farmer-scanner-wrap flex flex-col items-center w-full">
-      <div className="relative w-full aspect-square min-h-[300px] flex items-center justify-center bg-black rounded-2xl overflow-hidden border-2 border-gray-800 shadow-inner">
+      <div className="relative w-full aspect-square max-h-[350px] mx-auto bg-[#0D1117] rounded-2xl overflow-hidden border border-gray-800 shadow-inner shrink-0">
         <div
           id="h5qr-live"
-          className="w-full h-full absolute inset-0 flex flex-col items-center justify-center bg-black"
+          className="absolute inset-0 w-full h-full object-cover"
         />
 
         {(state === "requesting" || loading) && (
-          <div style={{ ...overlay, position: "absolute", inset: 0 }}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#0D1117] text-gray-400">
             <Camera size={40} style={{ opacity: 0.6, marginBottom: 8 }} />
             <p style={{ fontWeight: 700, margin: 0 }}>Initializing camera…</p>
           </div>

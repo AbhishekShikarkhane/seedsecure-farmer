@@ -71,8 +71,11 @@ const App = () => {
     setVerifyError("");
 
     try {
+      // Smart Link parsing: Extract raw BATCH_ID from URL parameter
+      const rawId = childId.includes('?id=') ? childId.split('?id=')[1] : childId;
+
       // Pass the progress callback to sync the UI with blockchain phases
-      const result = await verifyAndBurnPacket(childId, (pct, msg) => {
+      const result = await verifyAndBurnPacket(rawId.trim(), (pct, msg) => {
         setVerifyProgress(pct);
         setVerifyStatus(msg);
       });
@@ -89,8 +92,10 @@ const App = () => {
 
   const handleLogisticsScanResult = (scannedData) => {
     setScanning(false);
-    // Use the raw scanned data as the ID (it's a string like "BATCH_...")
-    const cartonId = String(scannedData).trim();
+    
+    // Smart Link parsing: Extract raw BATCH_ID from URL parameter
+    const rawData = String(scannedData).trim();
+    const cartonId = rawData.includes('?id=') ? rawData.split('?id=')[1] : rawData;
     setTransitParentId(cartonId);
 
     if (navigator.geolocation) {
