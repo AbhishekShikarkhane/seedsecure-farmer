@@ -12,7 +12,7 @@ import {
   LogOut
 } from "lucide-react";
 import Scanner from "./components/Scanner.jsx";
-import Login from "./components/Login.jsx";
+import LogisticsLogin from "./components/LogisticsLogin.jsx";
 import SeedSensePage from "./components/SeedSensePage.jsx";
 import VerificationSuccess from "./components/VerificationSuccess.jsx";
 import VerificationError from "./components/VerificationError.jsx";
@@ -25,8 +25,8 @@ import { getAgronomicAdvice } from "./services/agronomicService.js";
 import "./App.css";
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    localStorage.getItem('logisticsAuth') === 'true'
+  const [isLogisticsAuth, setIsLogisticsAuth] = useState(
+    localStorage.getItem('isLogisticsAuth') === 'true'
   );
   const [scanning, setScanning] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -140,26 +140,11 @@ const App = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Login onLogin={() => setIsAuthenticated(true)} />;
-  }
-
   return (
     <BlockchainProvider>
       <div className="farmer-app-wrap">
         <div className="farmer-card">
           <header className="farmer-header" style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
-              <button 
-                onClick={() => { localStorage.removeItem('logisticsAuth'); setIsAuthenticated(false); }}
-                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '8px', color: '#fff', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'background 0.2s', fontWeight: 'bold' }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                <LogOut size={16} /> Logout
-              </button>
-              <GlobalSyncButton />
-            </div>
             <div className="farmer-logo-icon">
               <ShieldCheck size={32} />
             </div>
@@ -271,7 +256,9 @@ const App = () => {
             </div>
           ) : (
             <div className="farmer-content">
-              {!scanning ? (
+              {!isLogisticsAuth ? (
+                <LogisticsLogin onLoginSuccess={() => setIsLogisticsAuth(true)} />
+              ) : !scanning ? (
                 <>
                   <div style={{ textAlign: 'center', marginBottom: 32 }}>
                     <MapPin size={48} style={{ color: 'var(--accent-cyan)', opacity: 0.5, marginBottom: 16 }} />
@@ -364,6 +351,18 @@ const App = () => {
                     <Scanner onScan={handleLogisticsScanResult} onClose={() => setScanning(false)} />
                   </div>
                 </div>
+              )}
+              {isLogisticsAuth && (
+                 <div style={{ textAlign: 'center', marginTop: '24px' }}>
+                   <button 
+                     onClick={() => { localStorage.removeItem('isLogisticsAuth'); setIsLogisticsAuth(false); }}
+                     style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px', borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'background 0.2s' }}
+                     onMouseEnter={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(255,255,255,0.05)', color: 'var(--danger)' })}
+                     onMouseLeave={(e) => Object.assign(e.currentTarget.style, { background: 'transparent', color: 'var(--text-secondary)' })}
+                   >
+                     <LogOut size={16} /> Logout Driver
+                   </button>
+                 </div>
               )}
             </div>
           )}
